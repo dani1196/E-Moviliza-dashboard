@@ -1,0 +1,6 @@
+[theme]
+primaryColor="#FFC300"        # Amarillo principal
+backgroundColor="#FFFFFF"     # Fondo blanco
+secondaryBackgroundColor="#FFF6CC"  # Amarillo muy suave
+textColor="#222222"           # Texto negro gris oscuro
+font="sans serif"
