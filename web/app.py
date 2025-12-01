@@ -84,7 +84,7 @@ total_kg_global = df["KG"].sum()
 total_horas_global = df["HORAS DE RUTA"].sum()
 total_consumo_energ = df["KWH/KM"].sum()
 
-sst.subheader("Totales globales (todas las empresas)")
+st.subheader("Totales globales (todas las empresas)")
 
 c1, c2, c3 = st.columns(3)
 c4, c5 = st.columns(2)
