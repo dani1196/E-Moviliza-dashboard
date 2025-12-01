@@ -49,6 +49,32 @@ if clientes_seleccionados:
 else:
     df_filtrado = df.copy()
 
+# ==== ESTILO DE TARJETAS (CSS) ====
+st.markdown("""
+    <style>
+    .card {
+        background-color: #FFF7C2;       /* Amarillo pastel */
+        padding: 18px 25px;
+        border-radius: 12px;
+        border: 1px solid #E6C400;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    .metric-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #111;
+    }
+    .metric-label {
+        font-size: 15px;
+        font-weight: 500;
+        color: #444;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
 # -----------------------------------
 # TOTALES GLOBALES (todas las empresas)
 # -----------------------------------
@@ -58,25 +84,50 @@ total_kg_global = df["KG"].sum()
 total_horas_global = df["HORAS DE RUTA"].sum()
 total_consumo_energ = df["KWH/KM"].sum()
 
-st.subheader("Totales globales (todas las empresas)")
+sst.subheader("Totales globales (todas las empresas)")
 
-g1, g2, g3 = st.columns(3)
-g4, g5 = st.columns(2)
+c1, c2, c3 = st.columns(3)
+c4, c5 = st.columns(2)
 
-with g1:
-    st.metric("🚗 Total de km recorridos", f"{total_km_global:,.2f} km")
+with c1:
+    st.markdown(f"""
+        <div class="card">
+            <div class="metric-label">🚗 Total de km recorridos</div>
+            <div class="metric-value">{total_km_global:,.2f} km</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-with g2:
-    st.metric("🌱 CO₂ evitado", f"{total_co2_global:,.2f} kg CO₂ eq")
+with c2:
+    st.markdown(f"""
+        <div class="card">
+            <div class="metric-label">🌱 CO₂ evitado</div>
+            <div class="metric-value">{total_co2_global:,.2f} kg CO₂</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-with g3:
-    st.metric("📦 Total de carga transportada", f"{total_kg_global:,.2f} kg")
+with c3:
+    st.markdown(f"""
+        <div class="card">
+            <div class="metric-label">📦 Total de carga transportada</div>
+            <div class="metric-value">{total_kg_global:,.2f} kg</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-with g4:
-    st.metric("⏱ Horas totales de ruta", f"{total_horas_global:,.2f} h")
+with c4:
+    st.markdown(f"""
+        <div class="card">
+            <div class="metric-label">⏱ Horas totales de ruta</div>
+            <div class="metric-value">{total_horas_global:,.2f} h</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-with g5:
-    st.metric("⚡ Consumo energético por Km", f"{total_consumo_energ:.3f} kWh/km")
+with c5:
+    st.markdown(f"""
+        <div class="card">
+            <div class="metric-label">⚡ Consumo energético por Km</div>
+            <div class="metric-value">{total_consumo_energ:.3f} kWh/km</div>
+        </div>
+    """, unsafe_allow_html=True)
 
 st.markdown("---")
 
