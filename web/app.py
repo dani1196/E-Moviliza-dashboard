@@ -49,6 +49,15 @@ if clientes_seleccionados:
 else:
     df_filtrado = df.copy()
 
+# -----------------------------------
+# TOTALES GLOBALES (todas las empresas)
+# -----------------------------------
+total_km_global = df["TOTAL KM"].sum()
+total_co2_global = df["CO2 EVITADO"].sum()
+total_kg_global = df["KG"].sum()
+total_horas_global = df["HORAS DE RUTA"].sum()
+total_consumo_energ = df["KWH/KM"].sum()
+
 # ==== ESTILO DE TARJETAS (CSS) ====
 st.markdown("""
     <style>
@@ -74,16 +83,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-
 # -----------------------------------
 # TOTALES GLOBALES (todas las empresas)
 # -----------------------------------
-total_km_global = df["TOTAL KM"].sum()
-total_co2_global = df["CO2 EVITADO"].sum()
-total_kg_global = df["KG"].sum()
-total_horas_global = df["HORAS DE RUTA"].sum()
-total_consumo_energ = df["KWH/KM"].sum()
-
 st.subheader("Totales globales (todas las empresas)")
 
 c1, c2, c3 = st.columns(3)
@@ -128,6 +130,7 @@ with c5:
             <div class="metric-value">{total_consumo_energ:.3f} kWh/km</div>
         </div>
     """, unsafe_allow_html=True)
+
 
 st.markdown("---")
 
