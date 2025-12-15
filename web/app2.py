@@ -3,6 +3,104 @@ import pandas as pd
 from pathlib import Path
 
 st.set_page_config(page_title="E-Moviliza | Tablero semanal", layout="wide")
+st.markdown("""
+<style>
+
+/* =========================
+   FONDO GENERAL
+   ========================= */
+.stApp {
+    background: linear-gradient(180deg, #081B33 0%, #0B2545 100%);
+    color: #F5F7FA;
+}
+
+/* Títulos */
+h1, h2, h3 {
+    color: #FFFFFF !important;
+    font-weight: 800;
+}
+
+/* Texto normal */
+p, span, label {
+    color: #E6EAF0 !important;
+}
+
+/* =========================
+   TARJETAS KPI
+   ========================= */
+.kpi-card{
+    background: linear-gradient(145deg, #FFF3B0, #FFD23F);
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+    transition: transform .12s ease, box-shadow .12s ease;
+    min-height: 120px;
+}
+
+.kpi-card:hover{
+    transform: translateY(-3px);
+    box-shadow: 0 16px 32px rgba(0,0,0,0.45);
+}
+
+/* Encabezado KPI */
+.kpi-top{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.kpi-label{
+    font-size: 14px;
+    font-weight: 700;
+    color: #2B2100;
+}
+
+.kpi-icon{
+    font-size: 22px;
+}
+
+/* Valor principal */
+.kpi-value{
+    font-size: 36px;
+    font-weight: 900;
+    color: #081B33;
+    line-height: 1.1;
+}
+
+/* Texto pequeño */
+.kpi-sub{
+    margin-top: 4px;
+    font-size: 12px;
+    color: #3A2E00;
+    opacity: 0.9;
+}
+
+/* =========================
+   FILTROS (multiselect)
+   ========================= */
+div[data-baseweb="select"] > div {
+    background-color: #FFF7CC !important;
+    border-radius: 10px;
+}
+
+div[data-baseweb="tag"] {
+    background-color: #FFC400 !important;
+    color: #081B33 !important;
+    font-weight: 700;
+    border-radius: 8px;
+}
+
+/* Separadores */
+hr {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.25);
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+
 st.title("Piloto E-Moviliza")
 
 EXCEL_PATH = Path("web/registro_semanal.xlsx")  # Asegúrate que esté en esta ruta
@@ -39,24 +137,37 @@ def load_data(path: Path) -> pd.DataFrame:
 df = load_data(EXCEL_PATH)
 
 # -------------------------------
-# Filtros
+# Filtros horizontales
 # -------------------------------
-st.sidebar.header("Filtros")
+st.markdown("---")
+st.subheader("🎛️ Filtros")
 
 semanas = sorted(df["semana"].unique().tolist())
-semanas_sel = st.sidebar.multiselect("Semana(s)", options=semanas, default=semanas)
 
+f1, f2, f3 = st.columns(3)
+
+with f1:
+    semanas_sel = st.multiselect("Semana(s)", options=semanas, default=semanas)
+
+# Filtrar por semana para poblar empresas válidas
 df_w = df[df["semana"].isin(semanas_sel)].copy() if semanas_sel else df.copy()
-
 empresas = sorted(df_w["empresa"].dropna().unique().tolist())
-emp_sel = st.sidebar.multiselect("Empresa(s)", options=empresas, default=empresas)
 
+with f2:
+    emp_sel = st.multiselect("Empresa(s)", options=empresas, default=empresas)
+
+# Filtrar por empresa para poblar dvs válidos
 df_we = df_w[df_w["empresa"].isin(emp_sel)].copy() if emp_sel else df_w.copy()
-
 dvs = sorted(df_we["dv"].dropna().unique().tolist())
-dv_sel = st.sidebar.multiselect("DV(s)", options=dvs, default=dvs)
 
+with f3:
+    dv_sel = st.multiselect("DV(s)", options=dvs, default=dvs)
+
+# Filtro final
 df_f = df_we[df_we["dv"].isin(dv_sel)].copy() if dv_sel else df_we.copy()
+
+#st.caption(f"Registros filtrados: **{len(df_f)}**")
+
 
 # st.caption(f"Registros filtrados: **{len(df_f)}**")
 
@@ -73,19 +184,28 @@ kwh_km = (total_kwh / total_km) if total_km > 0 else 0.0
 
 st.subheader("📌 KPIs (selección actual)")
 
-# -------- Fila 1 --------
-r1c1, r1c2, r1c3 = st.columns(3)
+r1 = st.columns(3)
+r2 = st.columns(3)
 
-r1c1.metric("🚗 Km recorridos", f"{total_km:,.2f}")
-r1c2.metric("🌱 Kg CO₂ - eq", f"{total_co2:,.2f}")
-r1c3.metric("📦 Kg transportados", f"{total_kg:,.0f}")
+def kpi_card(col, icon, label, value, sub=""):
+    col.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-top">
+            <div class="kpi-label">{label}</div>
+            <div class="kpi-icon">{icon}</div>
+        </div>
+        <div class="kpi-value">{value}</div>
+        <div class="kpi-sub">{sub}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# -------- Fila 2 --------
-r2c1, r2c2, r2c3 = st.columns(3)
+kpi_card(r1[0], "🚗", "Km recorridos", f"{total_km:,.2f}", "Total según filtros")
+kpi_card(r1[1], "🌱", "CO₂ (kg CO₂-eq)", f"{total_co2:,.2f}", "Total según filtros")
+kpi_card(r1[2], "📦", "Kg transportados", f"{total_kg:,.0f}", "Total según filtros")
 
-r2c1.metric("⏱ Tiempo en movimiento (h)", f"{total_tiempo:,.2f}")
-r2c2.metric("⚡ Consumo de batería (kWh)", f"{total_kwh:,.2f}")
-r2c3.metric("⚡ kWh/km", f"{kwh_km:,.3f}")
+kpi_card(r2[0], "⏱️", "Tiempo de ruta (h)", f"{total_tiempo:,.2f}", "Total según filtros")
+kpi_card(r2[1], "⚡", "Consumo (kWh)", f"{total_kwh:,.2f}", "Total según filtros")
+kpi_card(r2[2], "⚡", "kWh/km", f"{kwh_km:,.3f}", "Consumo específico")
 
 
 st.markdown("---")
