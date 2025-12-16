@@ -1,0 +1,10 @@
+[theme]
+base = "dark"
+
+# Azul marino
+primaryColor = "#1f6feb"
+backgroundColor = "#0b1f3a"
+secondaryBackgroundColor = "#122b4a"
+
+textColor = "#ffffff"
+font = "sans serif"

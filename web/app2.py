@@ -1,282 +1,414 @@
 import streamlit as st
 import pandas as pd
-from pathlib import Path
+from datetime import date
+import altair as alt
 
-st.set_page_config(page_title="E-Moviliza | Tablero semanal", layout="wide")
+
+# -------------------------------
+# Config página + estilo (fondo azul marino)
+# -------------------------------
+st.set_page_config(page_title="Tablero Operacional", layout="wide")
+
 st.markdown("""
 <style>
+.kpi-grid { display: grid; gap: 16px; }
+.kpi-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kpi-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-/* =========================
-   FONDO GENERAL
-   ========================= */
-.stApp {
-    background: linear-gradient(180deg, #081B33 0%, #0B2545 100%);
-    color: #F5F7FA;
+@media (max-width: 900px){
+  .kpi-grid.cols-3, .kpi-grid.cols-2 { grid-template-columns: 1fr; }
 }
 
-/* Títulos */
-h1, h2, h3 {
-    color: #FFFFFF !important;
-    font-weight: 800;
+.kpi-box{
+  background: #F2C94C;   /* amarillo */
+  border: none;          /* sin borde */
+  box-shadow: none;      /* sin sombra */
+  border-radius: 18px;
+  padding: 18px;
 }
 
-/* Texto normal */
-p, span, label {
-    color: #E6EAF0 !important;
+.kpi-box .top{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom: 10px;
 }
-
-/* =========================
-   TARJETAS KPI
-   ========================= */
-.kpi-card{
-    background: linear-gradient(145deg, #FFF3B0, #FFD23F);
-    border-radius: 16px;
-    padding: 18px 20px;
-    box-shadow: 0 10px 22px rgba(0,0,0,0.35);
-    transition: transform .12s ease, box-shadow .12s ease;
-    min-height: 120px;
+.kpi-box .label{
+  color:#111827;
+  font-weight: 800;
+  font-size: 1.0rem;
 }
-
-.kpi-card:hover{
-    transform: translateY(-3px);
-    box-shadow: 0 16px 32px rgba(0,0,0,0.45);
+.kpi-box .icon{ font-size: 20px; }
+.kpi-box .value{
+  color:#111826;
+  font-weight: 900;
+  font-size: 2.2rem;
+  line-height: 1.05;
 }
-
-/* Encabezado KPI */
-.kpi-top{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 6px;
+.kpi-box .sub{
+  margin-top: 6px;
+  color:#1f2937;
+  font-weight: 700;
+  font-size: 0.95rem;
+  opacity: 0.9;
 }
-
-.kpi-label{
-    font-size: 14px;
-    font-weight: 700;
-    color: #2B2100;
-}
-
-.kpi-icon{
-    font-size: 22px;
-}
-
-/* Valor principal */
-.kpi-value{
-    font-size: 36px;
-    font-weight: 900;
-    color: #081B33;
-    line-height: 1.1;
-}
-
-/* Texto pequeño */
-.kpi-sub{
-    margin-top: 4px;
-    font-size: 12px;
-    color: #3A2E00;
-    opacity: 0.9;
-}
-
-/* =========================
-   FILTROS (multiselect)
-   ========================= */
-div[data-baseweb="select"] > div {
-    background-color: #FFF7CC !important;
-    border-radius: 10px;
-}
-
-div[data-baseweb="tag"] {
-    background-color: #FFC400 !important;
-    color: #081B33 !important;
-    font-weight: 700;
-    border-radius: 8px;
-}
-
-/* Separadores */
-hr {
-    border: none;
-    border-top: 1px solid rgba(255,255,255,0.25);
-}
-
 </style>
 """, unsafe_allow_html=True)
 
 
+
 st.title("Piloto E-Moviliza")
 
-EXCEL_PATH = Path("web/registro_semanal.xlsx")  # Asegúrate que esté en esta ruta
+# -------------------------------
+# Helpers de lectura
+# -------------------------------
+def _read_excel_any_sheet(excel_file, sheet_try):
+    """
+    Intenta leer una hoja por nombre o índice.
+    sheet_try puede ser: ["Hoja2", "Sheet2", 1] etc.
+    """
+    last_err = None
+    for sh in sheet_try:
+        try:
+            return pd.read_excel(excel_file, sheet_name=sh)
+        except Exception as e:
+            last_err = e
+    raise last_err
+
 
 @st.cache_data
-def load_data(path: Path) -> pd.DataFrame:
-    if not path.exists():
-        st.error(f"No encuentro el archivo: {path}")
-        st.stop()
+def load_daily_data(excel_file) -> pd.DataFrame:
+    """
+    Carga la hoja principal (primera hoja) con columnas diarias:
+    fecha, km, Kg, tiempo, empresa
+    """
+    df = pd.read_excel(excel_file, sheet_name=0)
+    df.columns = [c.strip() for c in df.columns]
 
-    df = pd.read_excel(path, engine="openpyxl")
-
-    # Validación mínima
-    required = {"fecha", "km", "CO2", "Kg", "consumo", "tiempo", "empresa", "dv"}
-    missing = required - set(df.columns)
-    if missing:
-        st.error(f"Faltan columnas en el Excel: {missing}\nColumnas encontradas: {list(df.columns)}")
-        st.stop()
-
-    # Tipos
+    # Asegura fecha como datetime
     df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+
+    # Asegura numéricos
+    for col in ["km", "Kg", "tiempo"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
     df = df.dropna(subset=["fecha"])
-
-    for c in ["km", "CO2", "Kg", "consumo", "tiempo"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce")
-
-    # Semana (lunes a domingo)
-    df["week_start"] = df["fecha"] - pd.to_timedelta(df["fecha"].dt.weekday, unit="D")
-    df["week_end"] = df["week_start"] + pd.Timedelta(days=6)
-    df["semana"] = df["week_start"].dt.strftime("%Y-%m-%d") + " a " + df["week_end"].dt.strftime("%Y-%m-%d")
-
     return df
 
-df = load_data(EXCEL_PATH)
+
+@st.cache_data
+def load_kpis_hoja2_por_marca(excel_file):
+    """
+    Hoja2 tiene 4 bloques:
+    fila header: periodo | consumo | km | CO2 URBANO | <empresa> | <marca>
+    filas data:  valores (con coma decimal)
+
+    Retorna:
+      {
+        "BYD": {"consumo":..., "km":..., "kwh_km":..., "co2":...},
+        "FRZ": {"consumo":..., "km":..., "kwh_km":..., "co2":...},
+      }
+    """
+    df2 = pd.read_excel(excel_file, sheet_name="Hoja2", header=None)
+
+    def canon_marca(x):
+        s = str(x).strip().upper()
+        s = s.replace(".", "")  # por si viene "FRZ."
+        if s.startswith("BYD"):
+            return "BYD"
+        if s.startswith("FRZ") or "FARIZON" in s:
+            return "FRZ"
+        return None
+
+    def to_float(x):
+        # Convierte "201,6" -> 201.6 y maneja NaN
+        if pd.isna(x):
+            return None
+        s = str(x).strip().replace(",", ".")
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    acc = {
+        "BYD": {"consumo": 0.0, "km": 0.0, "co2": 0.0},
+        "FRZ": {"consumo": 0.0, "km": 0.0, "co2": 0.0},
+    }
+
+    # detecta cada bloque: fila donde col0 == "periodo"
+    for i in range(len(df2)):
+        v0 = df2.iloc[i, 0]
+        if isinstance(v0, str) and v0.strip().lower() == "periodo":
+            marca = canon_marca(df2.iloc[i, 5])  # BYD / FRZ (en el header del bloque)
+            if marca is None:
+                continue
+
+            r = i + 1
+            # termina bloque cuando la columna "periodo" (col0) está vacía
+            while r < len(df2) and pd.notna(df2.iloc[r, 0]):
+                consumo = to_float(df2.iloc[r, 1])
+                km      = to_float(df2.iloc[r, 2])
+                co2     = to_float(df2.iloc[r, 3])
+
+                if consumo is not None: acc[marca]["consumo"] += consumo
+                if km      is not None: acc[marca]["km"]      += km
+                if co2     is not None: acc[marca]["co2"]     += co2
+
+                r += 1
+
+    # Calcula kWh/km = consumo_total / km_total
+    for m in acc:
+        km = acc[m]["km"]
+        acc[m]["kwh_km"] = (acc[m]["consumo"] / km) if km > 0 else float("nan")
+
+    return acc
+
+
 
 # -------------------------------
-# Filtros horizontales
+# Utilidades
 # -------------------------------
-st.markdown("---")
-st.subheader("🎛️ Filtros")
-
-semanas = sorted(df["semana"].unique().tolist())
-
-f1, f2, f3 = st.columns(3)
-
-with f1:
-    semanas_sel = st.multiselect("Semana(s)", options=semanas, default=semanas)
-
-# Filtrar por semana para poblar empresas válidas
-df_w = df[df["semana"].isin(semanas_sel)].copy() if semanas_sel else df.copy()
-empresas = sorted(df_w["empresa"].dropna().unique().tolist())
-
-with f2:
-    emp_sel = st.multiselect("Empresa(s)", options=empresas, default=empresas)
-
-# Filtrar por empresa para poblar dvs válidos
-df_we = df_w[df_w["empresa"].isin(emp_sel)].copy() if emp_sel else df_w.copy()
-dvs = sorted(df_we["dv"].dropna().unique().tolist())
-
-with f3:
-    dv_sel = st.multiselect("DV(s)", options=dvs, default=dvs)
-
-# Filtro final
-df_f = df_we[df_we["dv"].isin(dv_sel)].copy() if dv_sel else df_we.copy()
-
-#st.caption(f"Registros filtrados: **{len(df_f)}**")
+def format_hours_to_hm(hours: float) -> str:
+    if pd.isna(hours):
+        return "—"
+    total_minutes = int(round(hours * 60))
+    h = total_minutes // 60
+    m = total_minutes % 60
+    return f"{h:02d}:{m:02d}"
 
 
-# st.caption(f"Registros filtrados: **{len(df_f)}**")
+def totals_block(df_in: pd.DataFrame):
+    total_km = df_in["km"].sum(skipna=True)
+    total_kg = df_in["Kg"].sum(skipna=True)
+    total_tiempo_h = df_in["tiempo"].sum(skipna=True)
+    return total_km, total_kg, total_tiempo_h
+
 
 # -------------------------------
-# KPIs (para la selección actual)
+# Carga de datos
 # -------------------------------
-total_km = float(df_f["km"].sum())
-total_co2 = float(df_f["CO2"].sum())
-total_kg = float(df_f["Kg"].sum())
-total_tiempo = float(df_f["tiempo"].sum())
-total_kwh = float(df_f["consumo"].sum())
+DEFAULT_PATH = "web/registro_semanal_completo.xlsx"
 
-kwh_km = (total_kwh / total_km) if total_km > 0 else 0.0
+try:
+    excel_source = DEFAULT_PATH
+    df = load_daily_data(excel_source)
+except Exception:
+    st.error(
+        "No pude abrir 'registro_semanal.xlsx'. "
+        "Asegúrate de que esté en la misma carpeta que app.py."
+    )
+    st.stop()
 
-st.subheader("📌 KPIs (selección actual)")
+# Validación de columnas necesarias
+required = {"fecha", "km", "Kg", "tiempo", "empresa"}
+missing = required - set(df.columns)
+if missing:
+    st.error(f"Faltan columnas en la hoja principal del Excel: {missing}")
+    st.stop()
 
-r1 = st.columns(3)
-r2 = st.columns(3)
-
-def kpi_card(col, icon, label, value, sub=""):
-    col.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-top">
-            <div class="kpi-label">{label}</div>
-            <div class="kpi-icon">{icon}</div>
-        </div>
-        <div class="kpi-value">{value}</div>
-        <div class="kpi-sub">{sub}</div>
+def kpi_box(label, value, icon="✨", sub=None):
+    sub_html = f'<div class="sub">{sub}</div>' if sub else ""
+    return f"""
+    <div class="kpi-box">
+      <div class="top">
+        <div class="label">{label}</div>
+        <div class="icon">{icon}</div>
+      </div>
+      <div class="value">{value}</div>
+      {sub_html}
     </div>
-    """, unsafe_allow_html=True)
-
-kpi_card(r1[0], "🚗", "Km recorridos", f"{total_km:,.2f}", "Total según filtros")
-kpi_card(r1[1], "🌱", "CO₂ (kg CO₂-eq)", f"{total_co2:,.2f}", "Total según filtros")
-kpi_card(r1[2], "📦", "Kg transportados", f"{total_kg:,.0f}", "Total según filtros")
-
-kpi_card(r2[0], "⏱️", "Tiempo de ruta (h)", f"{total_tiempo:,.2f}", "Total según filtros")
-kpi_card(r2[1], "⚡", "Consumo (kWh)", f"{total_kwh:,.2f}", "Total según filtros")
-kpi_card(r2[2], "⚡", "kWh/km", f"{kwh_km:,.3f}", "Consumo específico")
-
-
-st.markdown("---")
+    """
 
 # -------------------------------
-# Totales por empresa (selección actual)
+# KPIs FIJOS (18-ago a 12-nov) — NO dependen del filtro
 # -------------------------------
-st.subheader("🏢 Totales por empresa (selección actual)")
+st.subheader("🔒 Totales generales (18-ago a 12-nov)")
 
-df_emp = (
-    df_f.groupby("empresa", as_index=False)
-        .agg({
-            "km": "sum",
-            "CO2": "sum",
-            "Kg": "sum",
-            "tiempo": "sum",
-            "consumo": "sum"
-        })
+start_fixed = pd.Timestamp(date(2025, 8, 18))
+end_fixed = pd.Timestamp(date(2025, 11, 12))
+
+df_fixed = df[(df["fecha"] >= start_fixed) & (df["fecha"] <= end_fixed)].copy()
+km_fixed, kg_fixed, t_fixed = totals_block(df_fixed)
+
+# KPIs extra desde Hoja2
+# KPIs extra desde Hoja2 por marca
+kpis_marca = {"BYD": {"kwh_km": float("nan"), "co2": float("nan")},
+              "FRZ": {"kwh_km": float("nan"), "co2": float("nan")}}
+
+try:
+    kpis_marca = load_kpis_hoja2_por_marca(excel_source)
+except Exception:
+    pass
+
+# Primera fila (3 KPIs)
+# Valores para KPIs por marca
+byd_kwhkm = "—" if pd.isna(kpis_marca["BYD"]["kwh_km"]) else f'{kpis_marca["BYD"]["kwh_km"]:.3f}'
+frz_kwhkm = "—" if pd.isna(kpis_marca["FRZ"]["kwh_km"]) else f'{kpis_marca["FRZ"]["kwh_km"]:.3f}'
+
+byd_co2 = "—" if pd.isna(kpis_marca["BYD"]["co2"]) else f'{kpis_marca["BYD"]["co2"]:,.2f}'
+frz_co2 = "—" if pd.isna(kpis_marca["FRZ"]["co2"]) else f'{kpis_marca["FRZ"]["co2"]:,.2f}'
+
+# Fila 1 (3 KPIs)
+st.markdown(
+    f"""
+    <div class="kpi-grid cols-3">
+      {kpi_box("Total km recorridos", f"{km_fixed:,.1f}", "🚚")}
+      {kpi_box("Total kg transportados", f"{kg_fixed:,.1f}", "📦")}
+      {kpi_box("Total tiempo en movimiento", f"{t_fixed:,.2f} h", "⏱️", sub=format_hours_to_hm(t_fixed))}
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
-df_emp["kWh/km"] = df_emp.apply(lambda r: (r["consumo"] / r["km"]) if r["km"] > 0 else 0.0, axis=1)
+# Fila 2 (2 KPIs)
+st.markdown(
+    f"""
+    <div class="kpi-grid cols-2" style="margin-top: 12px;">
+      {kpi_box("Consumo energético por km BYD (kWh/km)", byd_kwhkm, "🔋")}
+      {kpi_box("Consumo energético por km FRZ (kWh/km)", frz_kwhkm, "🔋")}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-df_emp = df_emp.rename(columns={
-    "km": "Km",
-    "CO2": "CO₂",
-    "Kg": "Kg transportados",
-    "tiempo": "Tiempo (h)",
-    "consumo": "Consumo (kWh)"
-}).sort_values("Km", ascending=False)
-
-st.dataframe(df_emp, use_container_width=True, hide_index=True)
+# Fila 3 (2 KPIs)
+st.markdown(
+    f"""
+    <div class="kpi-grid cols-2" style="margin-top: 12px;">
+      {kpi_box("kg CO₂-eq BYD", byd_co2, "🌱")}
+      {kpi_box("kg CO₂-eq FRZ (kg)", frz_co2, "🌱")}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 st.markdown("---")
 
 # -------------------------------
-# Función para crear pivots semanales por empresa
+# FILTROS (para tabla + gráficas)
 # -------------------------------
-def weekly_pivot(metric_col: str) -> pd.DataFrame:
-    df_week = (
-        df_f.groupby(["week_start", "empresa"], as_index=False)[metric_col]
-            .sum()
-            .sort_values("week_start")
+st.subheader("🎛️ Filtros para tablas y gráficas")
+
+min_date = df["fecha"].min().date()
+max_date = df["fecha"].max().date()
+
+empresas = sorted(df["empresa"].dropna().unique().tolist())
+emp_options = ["Todas"] + empresas
+
+colf1, colf2 = st.columns([2, 1])
+
+with colf1:
+    date_range = st.date_input(
+        "Rango de fechas",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
     )
-    piv = df_week.pivot(index="week_start", columns="empresa", values=metric_col).fillna(0)
-    piv.index.name = "Semana"
-    return piv
+
+with colf2:
+    emp_sel = st.selectbox("Empresa", emp_options, index=0)
+
+if isinstance(date_range, tuple) and len(date_range) == 2:
+    d1, d2 = date_range
+else:
+    d1, d2 = min_date, max_date
+
+d1_ts = pd.Timestamp(d1)
+d2_ts = pd.Timestamp(d2)
+
+df_f = df[(df["fecha"] >= d1_ts) & (df["fecha"] <= d2_ts)].copy()
+if emp_sel != "Todas":
+    df_f = df_f[df_f["empresa"] == emp_sel].copy()
 
 # -------------------------------
-# Gráficas: semanas vs métricas (curvas por empresa)
+# TABLA DE TOTALES (según filtro)
 # -------------------------------
-st.subheader("📈 Evolución semanal por empresa")
+st.subheader("📌 Totales según filtro")
 
-tab1, tab2, tab3, tab4 = st.tabs([
-    "Km por semana",
-    "Consumo kWh por semana",
-    "Tiempo por semana",
-    "Kg transportados por semana"
-])
+km_f, kg_f, t_f = totals_block(df_f)
 
-with tab1:
-    piv = weekly_pivot("km")
-    st.line_chart(piv)
+resumen = pd.DataFrame(
+    {
+        "Fecha inicio": [d1],
+        "Fecha fin": [d2],
+        "Empresa": [emp_sel],
+        "Total km": [km_f],
+        "Total kg": [kg_f],
+        "Total tiempo (h)": [t_f],
+        "Total tiempo (HH:MM)": [format_hours_to_hm(t_f)],
+        "N registros": [len(df_f)],
+    }
+)
 
-with tab2:
-    piv = weekly_pivot("consumo")
-    st.line_chart(piv)
+st.dataframe(resumen, use_container_width=True, hide_index=True)
 
-with tab3:
-    piv = weekly_pivot("tiempo")
-    st.line_chart(piv)
 
-with tab4:
-    piv = weekly_pivot("Kg")
-    st.line_chart(piv)
+
+st.markdown("---")
+
+# -------------------------------
+# GRÁFICAS (Altair: eje X en fechas, sin 12 PM)
+# -------------------------------
+st.subheader("📈 Gráficas")
+
+# Asegura fecha sin hora (solo día)
+df_f = df_f.copy()
+df_f["fecha"] = pd.to_datetime(df_f["fecha"]).dt.normalize()  # 00:00:00 siempre
+
+tab_km, tab_kg, tab_t = st.tabs(["🛣️ Km", "📦 Kg", "⏱️ Tiempo"])
+
+def make_line_chart(df_plot: pd.DataFrame, y_col: str, y_title: str):
+    return (
+        alt.Chart(df_plot)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(
+                "fecha:T",
+                title="Fecha",
+                axis=alt.Axis(
+                    format="%a %d",   # lun 18 (depende de locale del sistema)
+                    labelAngle=0,
+                    tickCount="day"
+                ),
+            ),
+            y=alt.Y(f"{y_col}:Q", title=y_title),
+            color=alt.Color("empresa:N", title="Empresa"),
+            tooltip=[
+                alt.Tooltip("fecha:T", title="Fecha", format="%A %d"),
+                alt.Tooltip("empresa:N", title="Empresa"),
+                alt.Tooltip(f"{y_col}:Q", title=y_title, format=",.2f"),
+            ],
+        )
+        .properties(height=420)
+        .interactive()
+    )
+
+def build_data(y_col: str):
+    if emp_sel == "Todas":
+        # 4 curvas: agrupa por fecha y empresa
+        out = (
+            df_f.groupby(["fecha", "empresa"], as_index=False)[y_col]
+            .sum()
+        )
+    else:
+        # 1 curva: agrupa solo por fecha y asigna empresa seleccionada
+        out = (
+            df_f.groupby("fecha", as_index=False)[y_col]
+            .sum()
+            .assign(empresa=emp_sel)
+        )
+    return out
+
+with tab_km:
+    st.write("**Fecha vs km recorridos**")
+    data_km = build_data("km")
+    st.altair_chart(make_line_chart(data_km, "km", "Km recorridos"), use_container_width=True)
+
+with tab_kg:
+    st.write("**Fecha vs kg transportados**")
+    data_kg = build_data("Kg")
+    st.altair_chart(make_line_chart(data_kg, "Kg", "Kg transportados"), use_container_width=True)
+
+with tab_t:
+    st.write("**Fecha vs tiempo en movimiento (h)**")
+    data_t = build_data("tiempo")
+    st.altair_chart(make_line_chart(data_t, "tiempo", "Tiempo en movimiento (h)"), use_container_width=True)
