@@ -96,31 +96,20 @@ def load_daily_data(excel_file) -> pd.DataFrame:
 
 
 @st.cache_data
-def load_kpis_hoja2_por_marca(excel_file):
+def load_kpis_hoja2_totales(excel_file):
     """
-    Hoja2 tiene 4 bloques:
-    fila header: periodo | consumo | km | CO2 URBANO | <empresa> | <marca>
-    filas data:  valores (con coma decimal)
+    Hoja2:
+    header: periodo | consumo | km | CO2 URBANO | <empresa> | <marca>
+    filas:  valores (coma decimal)
 
     Retorna:
-      {
-        "BYD": {"consumo":..., "km":..., "kwh_km":..., "co2":...},
-        "FRZ": {"consumo":..., "km":..., "kwh_km":..., "co2":...},
-      }
+      consumo_total (kWh)
+      km_total (km)
+      co2_total (kg)
     """
     df2 = pd.read_excel(excel_file, sheet_name="Hoja2", header=None)
 
-    def canon_marca(x):
-        s = str(x).strip().upper()
-        s = s.replace(".", "")  # por si viene "FRZ."
-        if s.startswith("BYD"):
-            return "BYD"
-        if s.startswith("FRZ") or "FARIZON" in s:
-            return "FRZ"
-        return None
-
     def to_float(x):
-        # Convierte "201,6" -> 201.6 y maneja NaN
         if pd.isna(x):
             return None
         s = str(x).strip().replace(",", ".")
@@ -129,40 +118,29 @@ def load_kpis_hoja2_por_marca(excel_file):
         except ValueError:
             return None
 
-    acc = {
-        "BYD": {"consumo": 0.0, "km": 0.0, "co2": 0.0},
-        "FRZ": {"consumo": 0.0, "km": 0.0, "co2": 0.0},
-    }
+    consumo_total = 0.0
+    km_total = 0.0
+    co2_total = 0.0
 
-    # detecta cada bloque: fila donde col0 == "periodo"
     for i in range(len(df2)):
         v0 = df2.iloc[i, 0]
         if isinstance(v0, str) and v0.strip().lower() == "periodo":
-            marca = canon_marca(df2.iloc[i, 5])  # BYD / FRZ (en el header del bloque)
-            if marca is None:
-                continue
-
             r = i + 1
-            # termina bloque cuando la columna "periodo" (col0) está vacía
             while r < len(df2) and pd.notna(df2.iloc[r, 0]):
-                consumo = to_float(df2.iloc[r, 1])
-                km      = to_float(df2.iloc[r, 2])
-                co2     = to_float(df2.iloc[r, 3])
+                consumo = to_float(df2.iloc[r, 1])   # consumo
+                km      = to_float(df2.iloc[r, 2])   # km
+                co2     = to_float(df2.iloc[r, 3])   # CO2 urbano
 
-                if consumo is not None: acc[marca]["consumo"] += consumo
-                if km      is not None: acc[marca]["km"]      += km
-                if co2     is not None: acc[marca]["co2"]     += co2
+                if consumo is not None:
+                    consumo_total += consumo
+                if km is not None:
+                    km_total += km
+                if co2 is not None:
+                    co2_total += co2
 
                 r += 1
 
-    # Calcula kWh/km = consumo_total / km_total
-    for m in acc:
-        km = acc[m]["km"]
-        acc[m]["kwh_km"] = (acc[m]["consumo"] / km) if km > 0 else float("nan")
-
-    return acc
-
-
+    return consumo_total, km_total, co2_total
 
 # -------------------------------
 # Utilidades
@@ -223,6 +201,11 @@ def kpi_box(label, value, icon="✨", sub=None):
 # -------------------------------
 st.subheader("🔒 Totales generales (18-ago a 12-nov)")
 
+N_EMPRESAS = 4
+N_HOMBRES = 6
+N_MUJERES = 1
+COSTO_KWH_USD = 0.1715
+
 start_fixed = pd.Timestamp(date(2025, 8, 18))
 end_fixed = pd.Timestamp(date(2025, 11, 12))
 
@@ -230,22 +213,28 @@ df_fixed = df[(df["fecha"] >= start_fixed) & (df["fecha"] <= end_fixed)].copy()
 km_fixed, kg_fixed, t_fixed = totals_block(df_fixed)
 
 # KPIs extra desde Hoja2
-# KPIs extra desde Hoja2 por marca
-kpis_marca = {"BYD": {"kwh_km": float("nan"), "co2": float("nan")},
-              "FRZ": {"kwh_km": float("nan"), "co2": float("nan")}}
+consumo_total = float("nan")
+km_total_hoja2 = float("nan")
+co2_total = float("nan")
 
 try:
-    kpis_marca = load_kpis_hoja2_por_marca(excel_source)
+    consumo_total, km_total_hoja2, co2_total = load_kpis_hoja2_totales(excel_source)
 except Exception:
     pass
 
-# Primera fila (3 KPIs)
-# Valores para KPIs por marca
-byd_kwhkm = "—" if pd.isna(kpis_marca["BYD"]["kwh_km"]) else f'{kpis_marca["BYD"]["kwh_km"]:.3f}'
-frz_kwhkm = "—" if pd.isna(kpis_marca["FRZ"]["kwh_km"]) else f'{kpis_marca["FRZ"]["kwh_km"]:.3f}'
+consumo_kwh_km = (
+    consumo_total / km_total_hoja2
+    if pd.notna(consumo_total) and pd.notna(km_total_hoja2) and km_total_hoja2 > 0
+    else float("nan")
+)
 
-byd_co2 = "—" if pd.isna(kpis_marca["BYD"]["co2"]) else f'{kpis_marca["BYD"]["co2"]:,.2f}'
-frz_co2 = "—" if pd.isna(kpis_marca["FRZ"]["co2"]) else f'{kpis_marca["FRZ"]["co2"]:,.2f}'
+costo_total_usd = (
+    consumo_total * COSTO_KWH_USD
+    if pd.notna(consumo_total)
+    else float("nan")
+)
+
+
 
 # Fila 1 (3 KPIs)
 st.markdown(
@@ -259,27 +248,37 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Fila 2 (2 KPIs)
 st.markdown(
     f"""
-    <div class="kpi-grid cols-2" style="margin-top: 12px;">
-      {kpi_box("Consumo energético por km BYD (kWh/km)", byd_kwhkm, "🔋")}
-      {kpi_box("Consumo energético por km FRZ (kWh/km)", frz_kwhkm, "🔋")}
+    <div class="kpi-grid cols-3" style="margin-top: 12px;">
+      {kpi_box("Empresas participantes", f"{N_EMPRESAS}", "🏢")}
+      {kpi_box("Conductores hombres", f"{N_HOMBRES}", "👨‍✈️")}
+      {kpi_box("Conductoras mujeres", f"{N_MUJERES}", "👩‍✈️")}
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# Fila 3 (2 KPIs)
+# Fila 2 (1 KPI) - Consumo batería total
+consumo_kwh_km_txt = "—" if pd.isna(consumo_kwh_km) else f"{consumo_kwh_km:.3f}"
+costo_usd_txt = "—" if pd.isna(costo_total_usd) else f"USD {costo_total_usd:,.2f}"
+co2_total_txt     = "—" if pd.isna(co2_total) else f"{co2_total:,.2f}"
+
 st.markdown(
     f"""
     <div class="kpi-grid cols-2" style="margin-top: 12px;">
-      {kpi_box("kg CO₂-eq BYD", byd_co2, "🌱")}
-      {kpi_box("kg CO₂-eq FRZ (kg)", frz_co2, "🌱")}
+      {kpi_box(
+          "Consumo total de batería (kWh/km)",
+          consumo_kwh_km_txt,
+          "🔋",
+          sub=f"Costo energía: {costo_usd_txt}"
+      )}
+      {kpi_box("CO₂ urbano total (kg)", co2_total_txt, "🌱")}
     </div>
     """,
     unsafe_allow_html=True
 )
+
 
 st.markdown("---")
 
@@ -292,7 +291,6 @@ min_date = df["fecha"].min().date()
 max_date = df["fecha"].max().date()
 
 empresas = sorted(df["empresa"].dropna().unique().tolist())
-emp_options = ["Todas"] + empresas
 
 colf1, colf2 = st.columns([2, 1])
 
@@ -305,7 +303,16 @@ with colf1:
     )
 
 with colf2:
-    emp_sel = st.selectbox("Empresa", emp_options, index=0)
+    emp_sel_list = st.multiselect(
+        "Empresa(s)",
+        options=empresas,
+        default=empresas,   # por defecto: todas seleccionadas
+    )
+
+# Garantiza al menos una empresa seleccionada
+if not emp_sel_list:
+    emp_sel_list = empresas[:]   # vuelve a seleccionar todas
+    st.warning("Selecciona al menos una empresa. Se seleccionaron todas por defecto.")
 
 if isinstance(date_range, tuple) and len(date_range) == 2:
     d1, d2 = date_range
@@ -316,32 +323,52 @@ d1_ts = pd.Timestamp(d1)
 d2_ts = pd.Timestamp(d2)
 
 df_f = df[(df["fecha"] >= d1_ts) & (df["fecha"] <= d2_ts)].copy()
-if emp_sel != "Todas":
-    df_f = df_f[df_f["empresa"] == emp_sel].copy()
+df_f = df_f[df_f["empresa"].isin(emp_sel_list)].copy()
+
 
 # -------------------------------
 # TABLA DE TOTALES (según filtro)
 # -------------------------------
 st.subheader("📌 Totales según filtro")
 
-km_f, kg_f, t_f = totals_block(df_f)
-
-resumen = pd.DataFrame(
-    {
-        "Fecha inicio": [d1],
-        "Fecha fin": [d2],
-        "Empresa": [emp_sel],
-        "Total km": [km_f],
-        "Total kg": [kg_f],
-        "Total tiempo (h)": [t_f],
-        "Total tiempo (HH:MM)": [format_hours_to_hm(t_f)],
-        "N registros": [len(df_f)],
-    }
+# Agrupa por empresa
+resumen = (
+    df_f
+    .groupby("empresa")
+    .agg(
+        **{
+            "Km recorridos": ("km", "sum"),
+            "Kg transportados": ("Kg", "sum"),
+            "Tiempo en movimiento (h)": ("tiempo", "sum")
+        }
+    )
+    .reset_index()
 )
 
+# Agrega fechas del filtro
+resumen.insert(0, "Fecha inicio", d1)
+resumen.insert(1, "Fecha fin", d2)
+
+# Columna HH:MM
+resumen["Tiempo en movimiento (HH:MM)"] = resumen["Tiempo en movimiento (h)"].apply(format_hours_to_hm)
+
+# Reordena columnas (opcional, más limpio)
+resumen = resumen[
+    [
+        "Fecha inicio",
+        "Fecha fin",
+        "empresa",
+        "Km recorridos",
+        "Kg transportados",
+        "Tiempo en movimiento (h)",
+        "Tiempo en movimiento (HH:MM)"
+    ]
+]
+
+# Renombra columna empresa para presentación
+resumen = resumen.rename(columns={"empresa": "Empresa"})
+
 st.dataframe(resumen, use_container_width=True, hide_index=True)
-
-
 
 st.markdown("---")
 
@@ -383,20 +410,12 @@ def make_line_chart(df_plot: pd.DataFrame, y_col: str, y_title: str):
     )
 
 def build_data(y_col: str):
-    if emp_sel == "Todas":
-        # 4 curvas: agrupa por fecha y empresa
-        out = (
-            df_f.groupby(["fecha", "empresa"], as_index=False)[y_col]
-            .sum()
-        )
-    else:
-        # 1 curva: agrupa solo por fecha y asigna empresa seleccionada
-        out = (
-            df_f.groupby("fecha", as_index=False)[y_col]
-            .sum()
-            .assign(empresa=emp_sel)
-        )
+    out = (
+        df_f.groupby(["fecha", "empresa"], as_index=False)[y_col]
+        .sum()
+    )
     return out
+
 
 with tab_km:
     st.write("**Fecha vs km recorridos**")
