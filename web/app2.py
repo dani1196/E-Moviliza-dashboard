@@ -12,6 +12,7 @@ st.set_page_config(page_title="Tablero Operacional", layout="wide")
 st.markdown("""
 <style>
 .kpi-grid { display: grid; gap: 16px; }
+.kpi-grid.cols-1 { grid-template-columns: 1fr; }
 .kpi-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .kpi-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
@@ -50,6 +51,34 @@ st.markdown("""
   font-size: 0.95rem;
   opacity: 0.9;
 }
+</style>
+            
+<style>
+/* KPI especial para CO2 */
+/* KPI especial para CO2 */
+/* KPI especial para CO2 */
+.kpi-co2 {
+  background: #22C55E;      /* verde */
+  text-align: center;
+}
+
+.kpi-co2 .label {
+  color: #000000;           /* negro */
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.kpi-co2 .value {
+  color: #000000;           /* negro */
+  font-size: 3.0rem;
+  font-weight: 900;
+}
+
+.kpi-co2 .icon {
+  color: #000000;           /* negro */
+  font-size: 22px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -183,10 +212,14 @@ if missing:
     st.error(f"Faltan columnas en la hoja principal del Excel: {missing}")
     st.stop()
 
-def kpi_box(label, value, icon="✨", sub=None):
+# -------------------------------
+# KPIs FIJOS (18-ago a 12-nov) — NO dependen del filtro
+# -------------------------------
+
+def kpi_box(label, value, icon="✨", sub=None, extra_class=""):
     sub_html = f'<div class="sub">{sub}</div>' if sub else ""
     return f"""
-    <div class="kpi-box">
+    <div class="kpi-box {extra_class}">
       <div class="top">
         <div class="label">{label}</div>
         <div class="icon">{icon}</div>
@@ -196,15 +229,13 @@ def kpi_box(label, value, icon="✨", sub=None):
     </div>
     """
 
-# -------------------------------
-# KPIs FIJOS (18-ago a 12-nov) — NO dependen del filtro
-# -------------------------------
 st.subheader("🔒 Totales generales (18-ago a 12-nov)")
 
 N_EMPRESAS = 4
 N_HOMBRES = 6
 N_MUJERES = 1
 COSTO_KWH_USD = 0.1715
+TOTAL_CONDUCTORES = N_HOMBRES + N_MUJERES
 
 start_fixed = pd.Timestamp(date(2025, 8, 18))
 end_fixed = pd.Timestamp(date(2025, 11, 12))
@@ -234,46 +265,76 @@ costo_total_usd = (
     else float("nan")
 )
 
+# Costo por km
+costo_usd_km = (
+    consumo_kwh_km * COSTO_KWH_USD
+    if pd.notna(consumo_kwh_km)
+    else float("nan")
+)
 
+costo_ctvs_km = (
+    costo_usd_km * 100
+    if pd.notna(costo_usd_km)
+    else float("nan")
+)
 
-# Fila 1 (3 KPIs)
+# Enteros
+km_txt  = "—" if pd.isna(km_fixed) else f"{int(round(km_fixed)):,}"
+kg_txt  = "—" if pd.isna(kg_fixed) else f"{int(round(kg_fixed)):,}"
+co2_txt = "—" if pd.isna(co2_total) else f"{int(round(co2_total)):,}"
+
+# Tiempo solo h:mm
+time_hm_txt = format_hours_to_hm(t_fixed)
+
+# Razones / costos
+consumo_kwh_km_txt = (
+    "—"
+    if pd.isna(consumo_kwh_km)
+    else f"{consumo_kwh_km:.3f} ({costo_ctvs_km:.2f} ctvs./km)"
+)
+
+costo_usd_txt = "—" if pd.isna(costo_total_usd) else f"USD {costo_total_usd:,.2f}"
+
+# Fila 1 
 st.markdown(
     f"""
-    <div class="kpi-grid cols-3">
-      {kpi_box("Total km recorridos", f"{km_fixed:,.1f}", "🚚")}
-      {kpi_box("Total kg transportados", f"{kg_fixed:,.1f}", "📦")}
-      {kpi_box("Total tiempo en movimiento", f"{t_fixed:,.2f} h", "⏱️", sub=format_hours_to_hm(t_fixed))}
+    <div class="kpi-grid cols-1" style="margin-top: 12px;">
+      {kpi_box("Emisiones de CO₂ evitadas (kg)", co2_txt, "♻️", extra_class="kpi-co2")}
     </div>
     """,
     unsafe_allow_html=True
 )
+
+
+# Fila 2 (3 KPIs)
 
 st.markdown(
     f"""
     <div class="kpi-grid cols-3" style="margin-top: 12px;">
-      {kpi_box("Empresas participantes", f"{N_EMPRESAS}", "🏢")}
-      {kpi_box("Conductores hombres", f"{N_HOMBRES}", "👨‍✈️")}
-      {kpi_box("Conductoras mujeres", f"{N_MUJERES}", "👩‍✈️")}
+      {kpi_box("Distancia total recorrida (km)", km_txt, "🚚")}
+      {kpi_box("Carga total transportada (kg)", kg_txt, "📦")}
+      {kpi_box("Tiempo total en movimiento (hh:mm)", time_hm_txt, "⏱️")}
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# Fila 2 (1 KPI) - Consumo batería total
-consumo_kwh_km_txt = "—" if pd.isna(consumo_kwh_km) else f"{consumo_kwh_km:.3f}"
-costo_usd_txt = "—" if pd.isna(costo_total_usd) else f"USD {costo_total_usd:,.2f}"
-co2_total_txt     = "—" if pd.isna(co2_total) else f"{co2_total:,.2f}"
-
+# Fila 3 
 st.markdown(
     f"""
-    <div class="kpi-grid cols-2" style="margin-top: 12px;">
+    <div class="kpi-grid cols-3" style="margin-top: 12px;">
       {kpi_box(
-          "Consumo total de batería (kWh/km)",
+          "Consumo energético (kWh/km)",
           consumo_kwh_km_txt,
           "🔋",
-          sub=f"Costo energía: {costo_usd_txt}"
+        sub=f"Tarifario CNEL 2025: 17.15 ctvs./kWh"
       )}
-      {kpi_box("CO₂ urbano total (kg)", co2_total_txt, "🌱")}
+    {kpi_box("Empresas participantes", f"{N_EMPRESAS}", "🏢")}
+      {kpi_box(
+        "Conductores Hombres/Conductoras Mujeres ",
+        f"{N_HOMBRES} / {N_MUJERES}",
+        "👥"
+       )}
     </div>
     """,
     unsafe_allow_html=True
