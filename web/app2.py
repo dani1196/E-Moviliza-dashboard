@@ -288,7 +288,7 @@ time_hm_txt = format_hours_to_hm(t_fixed)
 consumo_kwh_km_txt = (
     "—"
     if pd.isna(consumo_kwh_km)
-    else f"{consumo_kwh_km:.3f} ({costo_ctvs_km:.2f} ctvs./km)"
+    else f"{consumo_kwh_km:.3f} ({costo_ctvs_km:.2f} ctvs/km)"
 )
 
 costo_usd_txt = "—" if pd.isna(costo_total_usd) else f"USD {costo_total_usd:,.2f}"
@@ -320,7 +320,7 @@ st.markdown(
 # Fila 3
 st.markdown(
     f"""
-    <div class="kpi-grid cols-3" style="margin-top: 12px;">
+    <div class="kpi-grid cols-2" style="margin-top: 12px;">
       {
         kpi_box(
             "Consumo energético (kWh/km)",
@@ -329,15 +329,24 @@ st.markdown(
             sub=f"Tarifario CNEL 2025: 17.15 ctvs/kWh",
         )
     }
-    {kpi_box("Empresas participantes", f"{N_EMPRESAS}", "🏢")}
     {
         kpi_box(
             "Consumo combustible (gL/km)",
-            "0.027 (0.07 ctvs/km)",
+            "0.027 (9 ctvs/km)",
             "⛽",
             sub="Fuelly (Hyundai H1 2009)",
         )
     }
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    f"""
+    <div class="kpi-grid cols-2" style="margin-top: 12px;">
+
+    {kpi_box("Empresas participantes", f"{N_EMPRESAS}", "🏢")}
       {
         kpi_box(
             "Conductores Hombres/Conductoras Mujeres ",
