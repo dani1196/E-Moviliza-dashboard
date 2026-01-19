@@ -9,7 +9,8 @@ import altair as alt
 # -------------------------------
 st.set_page_config(page_title="Tablero Operacional", layout="wide")
 
-st.markdown("""
+st.markdown(
+    """
 <style>
 .kpi-grid { display: grid; gap: 16px; }
 .kpi-grid.cols-1 { grid-template-columns: 1fr; }
@@ -80,11 +81,13 @@ st.markdown("""
 }
 
 </style>
-""", unsafe_allow_html=True)
-
+""",
+    unsafe_allow_html=True,
+)
 
 
 st.title("Piloto E-Moviliza")
+
 
 # -------------------------------
 # Helpers de lectura
@@ -156,9 +159,9 @@ def load_kpis_hoja2_totales(excel_file):
         if isinstance(v0, str) and v0.strip().lower() == "periodo":
             r = i + 1
             while r < len(df2) and pd.notna(df2.iloc[r, 0]):
-                consumo = to_float(df2.iloc[r, 1])   # consumo
-                km      = to_float(df2.iloc[r, 2])   # km
-                co2     = to_float(df2.iloc[r, 3])   # CO2 urbano
+                consumo = to_float(df2.iloc[r, 1])  # consumo
+                km = to_float(df2.iloc[r, 2])  # km
+                co2 = to_float(df2.iloc[r, 3])  # CO2 urbano
 
                 if consumo is not None:
                     consumo_total += consumo
@@ -170,6 +173,7 @@ def load_kpis_hoja2_totales(excel_file):
                 r += 1
 
     return consumo_total, km_total, co2_total
+
 
 # -------------------------------
 # Utilidades
@@ -216,6 +220,7 @@ if missing:
 # KPIs FIJOS (18-ago a 12-nov) — NO dependen del filtro
 # -------------------------------
 
+
 def kpi_box(label, value, icon="✨", sub=None, extra_class=""):
     sub_html = f'<div class="sub">{sub}</div>' if sub else ""
     return f"""
@@ -228,6 +233,7 @@ def kpi_box(label, value, icon="✨", sub=None, extra_class=""):
       {sub_html}
     </div>
     """
+
 
 st.subheader("🔒 Totales generales (18-ago a 12-nov)")
 
@@ -260,27 +266,19 @@ consumo_kwh_km = (
 )
 
 costo_total_usd = (
-    consumo_total * COSTO_KWH_USD
-    if pd.notna(consumo_total)
-    else float("nan")
+    consumo_total * COSTO_KWH_USD if pd.notna(consumo_total) else float("nan")
 )
 
 # Costo por km
 costo_usd_km = (
-    consumo_kwh_km * COSTO_KWH_USD
-    if pd.notna(consumo_kwh_km)
-    else float("nan")
+    consumo_kwh_km * COSTO_KWH_USD if pd.notna(consumo_kwh_km) else float("nan")
 )
 
-costo_ctvs_km = (
-    costo_usd_km * 100
-    if pd.notna(costo_usd_km)
-    else float("nan")
-)
+costo_ctvs_km = costo_usd_km * 100 if pd.notna(costo_usd_km) else float("nan")
 
 # Enteros
-km_txt  = "—" if pd.isna(km_fixed) else f"{int(round(km_fixed)):,}"
-kg_txt  = "—" if pd.isna(kg_fixed) else f"{int(round(kg_fixed)):,}"
+km_txt = "—" if pd.isna(km_fixed) else f"{int(round(km_fixed)):,}"
+kg_txt = "—" if pd.isna(kg_fixed) else f"{int(round(kg_fixed)):,}"
 co2_txt = "—" if pd.isna(co2_total) else f"{int(round(co2_total)):,}"
 
 # Tiempo solo h:mm
@@ -295,14 +293,14 @@ consumo_kwh_km_txt = (
 
 costo_usd_txt = "—" if pd.isna(costo_total_usd) else f"USD {costo_total_usd:,.2f}"
 
-# Fila 1 
+# Fila 1
 st.markdown(
     f"""
     <div class="kpi-grid cols-1" style="margin-top: 12px;">
       {kpi_box("Emisiones de CO₂ evitadas (kg)", co2_txt, "♻️", extra_class="kpi-co2")}
     </div>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 
@@ -316,28 +314,40 @@ st.markdown(
       {kpi_box("Tiempo total en movimiento (hh:mm)", time_hm_txt, "⏱️")}
     </div>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
-# Fila 3 
+# Fila 3
 st.markdown(
     f"""
     <div class="kpi-grid cols-3" style="margin-top: 12px;">
-      {kpi_box(
-          "Consumo energético (kWh/km)",
-          consumo_kwh_km_txt,
-          "🔋",
-        sub=f"Tarifario CNEL 2025: 17.15 ctvs./kWh"
-      )}
+      {
+        kpi_box(
+            "Consumo energético (kWh/km)",
+            consumo_kwh_km_txt,
+            "🔋",
+            sub=f"Tarifario CNEL 2025: 17.15 ctvs/kWh",
+        )
+    }
     {kpi_box("Empresas participantes", f"{N_EMPRESAS}", "🏢")}
-      {kpi_box(
-        "Conductores Hombres/Conductoras Mujeres ",
-        f"{N_HOMBRES} / {N_MUJERES}",
-        "👥"
-       )}
+    {
+        kpi_box(
+            "Consumo combustible (gL/km)",
+            "0.027 (0.07 ctvs/km)",
+            "⛽",
+            sub="Fuelly (Hyundai H1 2009)",
+        )
+    }
+      {
+        kpi_box(
+            "Conductores Hombres/Conductoras Mujeres ",
+            f"{N_HOMBRES} / {N_MUJERES}",
+            "👥",
+        )
+    }
     </div>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 
@@ -367,12 +377,12 @@ with colf2:
     emp_sel_list = st.multiselect(
         "Empresa(s)",
         options=empresas,
-        default=empresas,   # por defecto: todas seleccionadas
+        default=empresas,  # por defecto: todas seleccionadas
     )
 
 # Garantiza al menos una empresa seleccionada
 if not emp_sel_list:
-    emp_sel_list = empresas[:]   # vuelve a seleccionar todas
+    emp_sel_list = empresas[:]  # vuelve a seleccionar todas
     st.warning("Selecciona al menos una empresa. Se seleccionaron todas por defecto.")
 
 if isinstance(date_range, tuple) and len(date_range) == 2:
@@ -394,13 +404,12 @@ st.subheader("📌 Totales según filtro")
 
 # Agrupa por empresa
 resumen = (
-    df_f
-    .groupby("empresa")
+    df_f.groupby("empresa")
     .agg(
         **{
             "Km recorridos": ("km", "sum"),
             "Kg transportados": ("Kg", "sum"),
-            "Tiempo en movimiento (h)": ("tiempo", "sum")
+            "Tiempo en movimiento (h)": ("tiempo", "sum"),
         }
     )
     .reset_index()
@@ -411,7 +420,9 @@ resumen.insert(0, "Fecha inicio", d1)
 resumen.insert(1, "Fecha fin", d2)
 
 # Columna HH:MM
-resumen["Tiempo en movimiento (HH:MM)"] = resumen["Tiempo en movimiento (h)"].apply(format_hours_to_hm)
+resumen["Tiempo en movimiento (HH:MM)"] = resumen["Tiempo en movimiento (h)"].apply(
+    format_hours_to_hm
+)
 
 # Reordena columnas (opcional, más limpio)
 resumen = resumen[
@@ -422,7 +433,7 @@ resumen = resumen[
         "Km recorridos",
         "Kg transportados",
         "Tiempo en movimiento (h)",
-        "Tiempo en movimiento (HH:MM)"
+        "Tiempo en movimiento (HH:MM)",
     ]
 ]
 
@@ -444,6 +455,7 @@ df_f["fecha"] = pd.to_datetime(df_f["fecha"]).dt.normalize()  # 00:00:00 siempre
 
 tab_km, tab_kg, tab_t = st.tabs(["🛣️ Km", "📦 Kg", "⏱️ Tiempo"])
 
+
 def make_line_chart(df_plot: pd.DataFrame, y_col: str, y_title: str):
     return (
         alt.Chart(df_plot)
@@ -453,9 +465,9 @@ def make_line_chart(df_plot: pd.DataFrame, y_col: str, y_title: str):
                 "fecha:T",
                 title="Fecha",
                 axis=alt.Axis(
-                    format="%a %d",   # lun 18 (depende de locale del sistema)
+                    format="%a %d",  # lun 18 (depende de locale del sistema)
                     labelAngle=0,
-                    tickCount="day"
+                    tickCount="day",
                 ),
             ),
             y=alt.Y(f"{y_col}:Q", title=y_title),
@@ -470,25 +482,30 @@ def make_line_chart(df_plot: pd.DataFrame, y_col: str, y_title: str):
         .interactive()
     )
 
+
 def build_data(y_col: str):
-    out = (
-        df_f.groupby(["fecha", "empresa"], as_index=False)[y_col]
-        .sum()
-    )
+    out = df_f.groupby(["fecha", "empresa"], as_index=False)[y_col].sum()
     return out
 
 
 with tab_km:
     st.write("**Fecha vs km recorridos**")
     data_km = build_data("km")
-    st.altair_chart(make_line_chart(data_km, "km", "Km recorridos"), use_container_width=True)
+    st.altair_chart(
+        make_line_chart(data_km, "km", "Km recorridos"), use_container_width=True
+    )
 
 with tab_kg:
     st.write("**Fecha vs kg transportados**")
     data_kg = build_data("Kg")
-    st.altair_chart(make_line_chart(data_kg, "Kg", "Kg transportados"), use_container_width=True)
+    st.altair_chart(
+        make_line_chart(data_kg, "Kg", "Kg transportados"), use_container_width=True
+    )
 
 with tab_t:
     st.write("**Fecha vs tiempo en movimiento (h)**")
     data_t = build_data("tiempo")
-    st.altair_chart(make_line_chart(data_t, "tiempo", "Tiempo en movimiento (h)"), use_container_width=True)
+    st.altair_chart(
+        make_line_chart(data_t, "tiempo", "Tiempo en movimiento (h)"),
+        use_container_width=True,
+    )
